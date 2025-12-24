@@ -1,0 +1,19 @@
+.{
+    .name = .znet,
+    .version = "0.0.0",
+    .fingerprint = 0x286d5309b4cd603c,
+    .minimum_zig_version = "0.15.2",
+    .dependencies = .{
+        .c_enet = .{
+            .url = "https://github.com/lsalzman/enet/archive/refs/tags/v1.3.18.tar.gz",
+            .hash = "N-V-__8AAAC8BQCg_CK0VSnYq0FJKBFnGJOv_PUQyln0wqUE",
+        },
+    },
+    .paths = .{
+        "build.zig",
+        "build.zig.zon",
+        "src",
+        "LICENSE",
+        "README.md",
+    },
+}

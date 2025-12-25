@@ -25,8 +25,8 @@ pub const HostIP = union(enum) {
     broadcast,
     ipv4: [*:0]const u8,
 
-    fn asENetHostIP(self: *const HostIP) !u32 {
-        return switch (self.*) {
+    fn asENetHostIP(self: HostIP) !u32 {
+        return switch (self) {
             .any => c.ENET_HOST_ANY,
             .broadcast => c.ENET_HOST_BROADCAST,
             .ipv4 => |ip| {
@@ -45,8 +45,8 @@ pub const HostPort = union(enum) {
     any,
     specific: u16,
 
-    fn asENetPort(self: *const HostPort) u16 {
-        return switch (self.*) {
+    fn asENetPort(self: HostPort) u16 {
+        return switch (self) {
             .any => c.ENET_PORT_ANY,
             .specific => |port| port,
         };
@@ -70,8 +70,8 @@ pub const Bandwidth = union(enum) {
     unlimited,
     specific: u32,
 
-    fn asENetBandwidth(self: *const Bandwidth) u32 {
-        return switch (self.*) {
+    fn asENetBandwidth(self: Bandwidth) u32 {
+        return switch (self) {
             .unlimited => 0,
             .specific => |bw| bw,
         };
@@ -94,7 +94,7 @@ pub const Packet = struct {
         };
     }
 
-    pub fn deinit(self: *const Packet) void {
+    pub fn deinit(self: Packet) void {
         c.enet_packet_destroy(self.ptr);
     }
 
@@ -138,7 +138,7 @@ pub const Host = struct {
     }
 
     pub fn connect(
-        self: *const Host,
+        self: Host,
         addr: Address,
         channel_count: usize,
         data: u32,
@@ -158,11 +158,11 @@ pub const Host = struct {
         };
     }
 
-    pub fn deinit(self: *const Host) void {
+    pub fn deinit(self: Host) void {
         c.enet_host_destroy(self.ptr);
     }
 
-    pub fn service(self: *const Host, timeout_ms: u32) Error!?Event {
+    pub fn service(self: Host, timeout_ms: u32) Error!?Event {
         var event = @as(c.ENetEvent, undefined);
         if (c.enet_host_service(self.ptr, &event, timeout_ms) < 0) {
             return Error.HostServiceFailed;
@@ -200,11 +200,11 @@ pub const Host = struct {
         };
     }
 
-    pub fn broadcast(self: *const Host, packet: Packet) void {
+    pub fn broadcast(self: Host, packet: Packet) void {
         c.enet_host_broadcast(self.ptr, packet.channel_id, packet.ptr);
     }
 
-    pub fn flush(self: *const Host) void {
+    pub fn flush(self: Host) void {
         c.enet_host_flush(self.ptr);
     }
 
@@ -250,29 +250,29 @@ pub const PeerState = enum(c.ENetPeerState) {
 pub const Peer = struct {
     ptr: *c.ENetPeer,
 
-    pub fn send(self: *const Peer, packet: Packet) Error!void {
+    pub fn send(self: Peer, packet: Packet) Error!void {
         if (c.enet_peer_send(self.ptr, packet.channel_id, packet.ptr) != 0) {
             return Error.SendFailed;
         }
     }
 
-    pub fn state(self: *const Peer) PeerState {
+    pub fn state(self: Peer) PeerState {
         return @enumFromInt(self.ptr.state);
     }
 
-    pub fn disconnect(self: *const Peer, data: u32) void {
+    pub fn disconnect(self: Peer, data: u32) void {
         c.enet_peer_disconnect(self.ptr, data);
     }
 
-    pub fn disconnect_later(self: *const Peer, data: u32) void {
+    pub fn disconnect_later(self: Peer, data: u32) void {
         c.enet_peer_disconnect_later(self.ptr, data);
     }
 
-    pub fn disconnect_now(self: *const Peer, data: u32) void {
+    pub fn disconnect_now(self: Peer, data: u32) void {
         c.enet_peer_disconnect_now(self.ptr, data);
     }
 
-    pub fn reset(self: *const Peer) void {
+    pub fn reset(self: Peer) void {
         c.enet_peer_reset(self.ptr);
     }
 };

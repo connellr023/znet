@@ -1,4 +1,4 @@
-const cdefs = @cImport(@cInclude("enet/enet.h"));
+const c = @cImport(@cInclude("enet/enet.h"));
 const std = @import("std");
 
 pub const Error = error{
@@ -11,13 +11,13 @@ pub const Error = error{
     HostConnectFailed,
 };
 
-pub const Callbacks = cdefs.ENetCallbacks;
+pub const Callbacks = c.ENetCallbacks;
 
 pub const Flags = enum(u32) {
-    reliable = cdefs.ENET_PACKET_FLAG_RELIABLE,
-    unsequenced = cdefs.ENET_PACKET_FLAG_UNSEQUENCED,
-    no_allocate = cdefs.ENET_PACKET_FLAG_NO_ALLOCATE,
-    unreliable_fragment = cdefs.ENET_PACKET_FLAG_UNRELIABLE_FRAGMENT,
+    reliable = c.ENET_PACKET_FLAG_RELIABLE,
+    unsequenced = c.ENET_PACKET_FLAG_UNSEQUENCED,
+    no_allocate = c.ENET_PACKET_FLAG_NO_ALLOCATE,
+    unreliable_fragment = c.ENET_PACKET_FLAG_UNRELIABLE_FRAGMENT,
 };
 
 pub const AddressHost = union(enum) {
@@ -27,11 +27,11 @@ pub const AddressHost = union(enum) {
 
     fn asENetAddress(self: *const AddressHost) !u32 {
         return switch (self) {
-            .any => cdefs.ENET_HOST_ANY,
-            .broadcast => cdefs.ENET_HOST_BROADCAST,
+            .any => c.ENET_HOST_ANY,
+            .broadcast => c.ENET_HOST_BROADCAST,
             .ipv4 => |ip| {
-                var addr = @as(cdefs.ENetAddress, undefined);
-                if (cdefs.enet_address_set_host_ip(&addr, ip.ptr) != 0) {
+                var addr = @as(c.ENetAddress, undefined);
+                if (c.enet_address_set_host_ip(&addr, ip.ptr) != 0) {
                     return Error.SetAddressHostFailed;
                 }
 
@@ -47,14 +47,14 @@ pub const AddressPort = union(enum) {
 
     fn asENetPort(self: *const AddressPort) u16 {
         return switch (self) {
-            .any => cdefs.ENET_PORT_ANY,
+            .any => c.ENET_PORT_ANY,
             .specific => |port| port,
         };
     }
 };
 
 pub const Address = struct {
-    addr: cdefs.ENetAddress,
+    addr: c.ENetAddress,
 
     pub fn init(host: AddressHost, port: AddressPort) !Address {
         return .{
@@ -79,10 +79,10 @@ pub const Bandwidth = union(enum) {
 };
 
 pub const Packet = struct {
-    ptr: *cdefs.ENetPacket,
+    ptr: *c.ENetPacket,
 
-    pub fn init(data: [*]const u8, flags: Flags) Error!Packet {
-        const packet = cdefs.enet_packet_create(data.ptr, data.len, @intFromEnum(flags));
+    pub fn init(data: []const u8, flags: Flags) Error!Packet {
+        const packet = c.enet_packet_create(data.ptr, data.len, @intFromEnum(flags));
         if (packet == null) {
             return Error.PacketCreateFailed;
         }
@@ -93,20 +93,20 @@ pub const Packet = struct {
     }
 
     pub fn deinit(self: *Packet) void {
-        cdefs.enet_packet_destroy(self.ptr);
+        c.enet_packet_destroy(self.ptr);
     }
 
-    pub fn data(self: *const Packet) []const u8 {
+    pub fn dataSlice(self: *const Packet) []const u8 {
         return self.ptr.data[0..self.ptr.dataLength];
     }
 
     pub fn reader(self: *const Packet) std.io.Reader {
-        return std.io.Reader.fixed(self.data());
+        return std.io.Reader.fixed(self.dataSlice());
     }
 };
 
 pub const Host = struct {
-    ptr: *cdefs.ENetHost,
+    ptr: *c.ENetHost,
 
     pub fn init(
         address: Address,
@@ -115,7 +115,7 @@ pub const Host = struct {
         incoming_bandwidth: Bandwidth,
         outgoing_bandwidth: Bandwidth,
     ) !Host {
-        const host = cdefs.enet_host_create(
+        const host = c.enet_host_create(
             &address.addr,
             peer_count,
             channel_count,
@@ -137,7 +137,7 @@ pub const Host = struct {
         channel_count: usize,
         data: u32,
     ) !Peer {
-        const peer = cdefs.enet_host_connect(
+        const peer = c.enet_host_connect(
             self.ptr,
             &address.addr,
             channel_count,
@@ -153,29 +153,29 @@ pub const Host = struct {
     }
 
     pub fn deinit(self: *Host) void {
-        cdefs.enet_host_destroy(self.ptr);
+        c.enet_host_destroy(self.ptr);
     }
 
     pub fn service(self: *Host, timeout_ms: i32) Error!?Event {
-        var event = @as(cdefs.ENetEvent, undefined);
-        if (cdefs.enet_host_service(self.ptr, &event, timeout_ms) < 0) {
+        var event = @as(c.ENetEvent, undefined);
+        if (c.enet_host_service(self.ptr, &event, timeout_ms) < 0) {
             return Error.HostServiceFailed;
         }
 
         return switch (event.type) {
-            cdefs.ENET_EVENT_TYPE_CONNECT => .{
+            c.ENET_EVENT_TYPE_CONNECT => .{
                 .connect = .{
                     .peer = .{ .ptr = event.peer },
                     .data = event.data,
                 },
             },
-            cdefs.ENET_EVENT_TYPE_DISCONNECT => .{
+            c.ENET_EVENT_TYPE_DISCONNECT => .{
                 .disconnect = .{
                     .peer = .{ .ptr = event.peer },
                     .data = event.data,
                 },
             },
-            cdefs.ENET_EVENT_TYPE_RECEIVE => .{
+            c.ENET_EVENT_TYPE_RECEIVE => .{
                 .receive = .{
                     .packet = .{ .ptr = event.packet },
                     .channel_id = event.channelID,
@@ -184,31 +184,56 @@ pub const Host = struct {
             else => null,
         };
     }
+
+    pub fn broadcast(self: *Host, channel_id: u8, packet: *Packet) void {
+        c.enet_host_broadcast(self.ptr, channel_id, packet.ptr);
+    }
+};
+
+pub const PeerState = enum(c.ENetPeerState) {
+    disconnected = c.ENET_PEER_STATE_DISCONNECTED,
+    connecting = c.ENET_PEER_STATE_CONNECTING,
+    acknowledging_connect = c.ENET_PEER_STATE_ACKNOWLEDGING_CONNECT,
+    connection_pending = c.ENET_PEER_STATE_CONNECTION_PENDING,
+    connection_succeeded = c.ENET_PEER_STATE_CONNECTION_SUCCEEDED,
+    connected = c.ENET_PEER_STATE_CONNECTED,
+    disconnect_later = c.ENET_PEER_STATE_DISCONNECT_LATER,
+    disconnecting = c.ENET_PEER_STATE_DISCONNECTING,
+    acknowledging_disconnect = c.ENET_PEER_STATE_ACKNOWLEDGING_DISCONNECT,
+    zombie = c.ENET_PEER_STATE_ZOMBIE,
 };
 
 pub const Peer = struct {
-    ptr: *cdefs.ENetPeer,
+    ptr: *c.ENetPeer,
 
-    pub fn send(self: *Peer, channel_id: u8, packet: Packet) Error!void {
-        if (cdefs.enet_peer_send(self.ptr, channel_id, packet.ptr) != 0) {
+    pub fn send(self: *Peer, channel_id: u8, packet: *Packet) Error!void {
+        if (c.enet_peer_send(self.ptr, channel_id, packet.ptr) != 0) {
             return Error.SendFailed;
         }
     }
 
+    pub fn dataPtr(self: *Peer) ?*anyopaque {
+        return self.ptr.data;
+    }
+
+    pub fn state(self: *const Peer) PeerState {
+        return @enumFromInt(self.ptr.state);
+    }
+
     pub fn disconnect(self: *Peer, data: u32) void {
-        cdefs.enet_peer_disconnect(self.ptr, data);
+        c.enet_peer_disconnect(self.ptr, data);
     }
 
     pub fn disconnect_later(self: *Peer, data: u32) void {
-        cdefs.enet_peer_disconnect_later(self.ptr, data);
+        c.enet_peer_disconnect_later(self.ptr, data);
     }
 
     pub fn disconnect_now(self: *Peer, data: u32) void {
-        cdefs.enet_peer_disconnect_now(self.ptr, data);
+        c.enet_peer_disconnect_now(self.ptr, data);
     }
 
     pub fn reset(self: *Peer) void {
-        cdefs.enet_peer_reset(self.ptr);
+        c.enet_peer_reset(self.ptr);
     }
 };
 
@@ -228,17 +253,17 @@ pub const Event = union(enum) {
 };
 
 pub fn init() Error!void {
-    if (cdefs.enet_initialize() != 0) {
+    if (c.enet_initialize() != 0) {
         return Error.InitializeFailed;
     }
 }
 
 pub fn init_with_callbacks(callbacks: Callbacks) Error!void {
-    if (cdefs.enet_initialize_with_callbacks(cdefs.ENET_VERSION, &callbacks) != 0) {
+    if (c.enet_initialize_with_callbacks(c.ENET_VERSION, &callbacks) != 0) {
         return Error.InitializeFailed;
     }
 }
 
 pub fn deinit() void {
-    cdefs.enet_deinitialize();
+    c.enet_deinitialize();
 }

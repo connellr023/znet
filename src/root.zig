@@ -8,6 +8,7 @@ pub const Error = error{
     HostServiceFailed,
     SetAddressHostFailed,
     HostCreateFailed,
+    HostConnectFailed,
 };
 
 pub const Callbacks = cdefs.ENetCallbacks;
@@ -94,6 +95,14 @@ pub const Packet = struct {
     pub fn deinit(self: *Packet) void {
         cdefs.enet_packet_destroy(self.ptr);
     }
+
+    pub fn data(self: *const Packet) []const u8 {
+        return self.ptr.data[0..self.ptr.dataLength];
+    }
+
+    pub fn reader(self: *const Packet) std.io.Reader {
+        return std.io.Reader.fixed(self.data());
+    }
 };
 
 pub const Host = struct {
@@ -119,6 +128,27 @@ pub const Host = struct {
 
         return .{
             .ptr = host,
+        };
+    }
+
+    pub fn connect(
+        self: *Host,
+        address: Address,
+        channel_count: usize,
+        data: u32,
+    ) !Peer {
+        const peer = cdefs.enet_host_connect(
+            self.ptr,
+            &address.addr,
+            channel_count,
+            data,
+        );
+        if (peer == null) {
+            return Error.HostConnectFailed;
+        }
+
+        return .{
+            .ptr = peer,
         };
     }
 
@@ -203,8 +233,8 @@ pub fn init() Error!void {
     }
 }
 
-pub fn init_with_callbacks(callbacks: *const Callbacks) Error!void {
-    if (cdefs.enet_initialize_with_callbacks(cdefs.ENET_VERSION, callbacks) != 0) {
+pub fn init_with_callbacks(callbacks: Callbacks) Error!void {
+    if (cdefs.enet_initialize_with_callbacks(cdefs.ENET_VERSION, &callbacks) != 0) {
         return Error.InitializeFailed;
     }
 }

@@ -9,7 +9,7 @@
 
 <!-- prettier-ignore -->
 > [!NOTE]
-> **ZNet** is not a complete binding of ENet, but it covers the essential APIs needed for typical networking use cases.
+> **ZNet** is not a complete binding of **ENet**, but it covers the essential APIs needed for typical networking use cases.
 
 ## Installation
 

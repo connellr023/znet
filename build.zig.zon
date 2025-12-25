@@ -5,7 +5,7 @@
     .minimum_zig_version = "0.15.2",
     .dependencies = .{
         .c_enet = .{
-            .url = "git+https://github.com/lsalzman/enet.git",
+            .url = "git+https://github.com/lsalzman/enet.git#8be2368a8001f28db44e81d5939de5e613025023",
             .hash = "N-V-__8AAOfEBQDV0QE6f1lRiGiqZa9k3-ZkthJHdwGIp3Zh",
         },
     },

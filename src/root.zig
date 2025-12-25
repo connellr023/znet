@@ -80,8 +80,9 @@ pub const Bandwidth = union(enum) {
 
 pub const Packet = struct {
     ptr: *c.ENetPacket,
+    channel_id: u8,
 
-    pub fn init(data: []const u8, flags: Flags) Error!Packet {
+    pub fn init(data: []const u8, channel_id: u8, flags: Flags) Error!Packet {
         const packet = c.enet_packet_create(data.ptr, data.len, @intFromEnum(flags));
         if (packet == null) {
             return Error.PacketCreateFailed;
@@ -89,6 +90,7 @@ pub const Packet = struct {
 
         return .{
             .ptr = packet,
+            .channel_id = channel_id,
         };
     }
 
@@ -177,7 +179,7 @@ pub const Host = struct {
             },
             c.ENET_EVENT_TYPE_RECEIVE => .{
                 .receive = .{
-                    .packet = .{ .ptr = event.packet },
+                    .ptr = event.packet,
                     .channel_id = event.channelID,
                 },
             },
@@ -185,8 +187,12 @@ pub const Host = struct {
         };
     }
 
-    pub fn broadcast(self: *Host, channel_id: u8, packet: *Packet) void {
-        c.enet_host_broadcast(self.ptr, channel_id, packet.ptr);
+    pub fn broadcast(self: *Host, packet: *Packet) void {
+        c.enet_host_broadcast(self.ptr, packet.channel_id, packet.ptr);
+    }
+
+    pub fn flush(self: *Host) void {
+        c.enet_host_flush(self.ptr);
     }
 };
 
@@ -206,8 +212,8 @@ pub const PeerState = enum(c.ENetPeerState) {
 pub const Peer = struct {
     ptr: *c.ENetPeer,
 
-    pub fn send(self: *Peer, channel_id: u8, packet: *Packet) Error!void {
-        if (c.enet_peer_send(self.ptr, channel_id, packet.ptr) != 0) {
+    pub fn send(self: *Peer, packet: *Packet) Error!void {
+        if (c.enet_peer_send(self.ptr, packet.channel_id, packet.ptr) != 0) {
             return Error.SendFailed;
         }
     }
@@ -246,10 +252,7 @@ pub const Event = union(enum) {
         peer: Peer,
         data: u32,
     },
-    receive: struct {
-        packet: Packet,
-        channel_id: u8,
-    },
+    receive: Packet,
 };
 
 pub fn init() Error!void {

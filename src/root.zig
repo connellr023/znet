@@ -62,13 +62,13 @@ pub const HostPort = union(enum) {
     /// Any port; Maps to `ENET_PORT_ANY`.
     any,
     /// Specific port number.
-    specific: u16,
+    port: u16,
 
     /// Convert to ENet port representation.
     fn asENetPort(self: HostPort) u16 {
         return switch (self) {
             .any => c.ENET_PORT_ANY,
-            .specific => |port| port,
+            .port => |port| port,
         };
     }
 };
@@ -94,13 +94,13 @@ pub const BandwidthLimit = union(enum) {
     /// Unlimited bandwidth.
     unlimited,
     /// Specific bandwidth in bytes per second.
-    specific: u32,
+    bps: u32,
 
     /// Convert to ENet bandwidth representation.
     fn asENetBandwidth(self: BandwidthLimit) u32 {
         return switch (self) {
             .unlimited => 0,
-            .specific => |bps| bps,
+            .bps => |bps| bps,
         };
     }
 };
@@ -110,13 +110,13 @@ pub const ChannelLimit = union(enum) {
     /// Maximum allowed channels; Maps to `ENET_PROTOCOL_MAXIMUM_CHANNEL_COUNT`.
     max,
     /// User-defined specific channel limit.
-    specific: usize,
+    channels: usize,
 
     /// Convert to ENet channel limit representation.
     fn asENetChannelLimit(self: ChannelLimit) usize {
         return switch (self) {
             .max => c.ENET_PROTOCOL_MAXIMUM_CHANNEL_COUNT,
-            .specific => |limit| limit,
+            .channels => |limit| limit,
         };
     }
 };

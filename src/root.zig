@@ -30,7 +30,8 @@ pub const HostIP = union(enum) {
             .any => c.ENET_HOST_ANY,
             .broadcast => c.ENET_HOST_BROADCAST,
             .ipv4 => |ip| {
-                var addr = @as(c.ENetAddress, undefined);
+                // SAFETY: `enet_address_set_host` sets the host field
+                var addr: c.ENetAddress = undefined;
                 if (c.enet_address_set_host(&addr, ip) != 0) {
                     return Error.SetHostIPFailed;
                 }
@@ -163,7 +164,8 @@ pub const Host = struct {
     }
 
     pub fn service(self: Host, timeout_ms: u32) Error!?Event {
-        var event = @as(c.ENetEvent, undefined);
+        // SAFETY: `enet_host_service` fills out the event struct
+        var event: c.ENetEvent = undefined;
         if (c.enet_host_service(self.ptr, &event, timeout_ms) < 0) {
             return Error.HostServiceFailed;
         }

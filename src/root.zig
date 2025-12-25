@@ -183,8 +183,13 @@ pub const Host = struct {
             },
             c.ENET_EVENT_TYPE_RECEIVE => .{
                 .receive = .{
-                    .ptr = event.packet,
-                    .channel_id = event.channelID,
+                    .peer = .{
+                        .ptr = event.peer,
+                    },
+                    .packet = .{
+                        .ptr = event.packet,
+                        .channel_id = event.channelID,
+                    },
                 },
             },
             else => null,
@@ -277,7 +282,10 @@ pub const Event = union(enum) {
         peer: Peer,
         data: u32,
     },
-    receive: Packet,
+    receive: struct {
+        peer: Peer,
+        packet: Packet,
+    },
 };
 
 pub fn init() Error!void {

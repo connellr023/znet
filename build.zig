@@ -1,6 +1,30 @@
 const std = @import("std");
 
-pub fn build(bld: *std.Build) void {
+const StrList = std.ArrayList([]const u8);
+
+pub fn detectENetFlags(os: std.Target.Os, alloc: std.mem.Allocator) !StrList {
+    var flags = try StrList.initCapacity(alloc, 0);
+
+    switch (os.tag) {
+        .linux, .macos => {
+            try flags.append(alloc, "-DHAS_FCNTL=1");
+            try flags.append(alloc, "-DHAS_POLL=1");
+            try flags.append(alloc, "-DHAS_GETADDRINFO=1");
+            try flags.append(alloc, "-DHAS_GETNAMEINFO=1");
+            try flags.append(alloc, "-DHAS_INET_PTON=1");
+            try flags.append(alloc, "-DHAS_INET_NTOP=1");
+            try flags.append(alloc, "-DHAS_MSGHDR_FLAGS=1");
+        },
+        else => return error.UnsupportedOS,
+    }
+
+    try flags.append(alloc, "-DHAS_OFFSETOF=1");
+    try flags.append(alloc, "-DHAS_SOCKLEN_T=1");
+
+    return flags;
+}
+
+pub fn build(bld: *std.Build) !void {
     const target = bld.standardTargetOptions(.{});
     const optimize = bld.standardOptimizeOption(.{});
 
@@ -17,6 +41,7 @@ pub fn build(bld: *std.Build) void {
         .target = target,
         .optimize = optimize,
     });
+    const c_enet_flags = try detectENetFlags(target.result.os, bld.allocator);
 
     lib.addCSourceFiles(.{
         .root = c_enet_dep.path("."),
@@ -31,6 +56,7 @@ pub fn build(bld: *std.Build) void {
             "protocol.c",
             "callbacks.c",
         },
+        .flags = c_enet_flags.items,
     });
     lib.addIncludePath(c_enet_dep.path("include"));
     lib.linkLibC();

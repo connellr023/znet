@@ -6,7 +6,7 @@ pub const Error = error{
     SendFailed,
     PacketCreateFailed,
     HostServiceFailed,
-    SetAddressHostFailed,
+    SetHostIPFailed,
     HostCreateFailed,
     HostConnectFailed,
 };
@@ -20,19 +20,19 @@ pub const Flags = enum(u32) {
     unreliable_fragment = c.ENET_PACKET_FLAG_UNRELIABLE_FRAGMENT,
 };
 
-pub const AddressHost = union(enum) {
+pub const HostIP = union(enum) {
     any,
     broadcast,
     ipv4: [*:0]const u8,
 
-    fn asENetAddress(self: *const AddressHost) !u32 {
-        return switch (self) {
+    fn asENetHostIP(self: *const HostIP) !u32 {
+        return switch (self.*) {
             .any => c.ENET_HOST_ANY,
             .broadcast => c.ENET_HOST_BROADCAST,
             .ipv4 => |ip| {
                 var addr = @as(c.ENetAddress, undefined);
-                if (c.enet_address_set_host_ip(&addr, ip.ptr) != 0) {
-                    return Error.SetAddressHostFailed;
+                if (c.enet_address_set_host(&addr, ip) != 0) {
+                    return Error.SetHostIPFailed;
                 }
 
                 return addr.host;
@@ -41,12 +41,12 @@ pub const AddressHost = union(enum) {
     }
 };
 
-pub const AddressPort = union(enum) {
+pub const HostPort = union(enum) {
     any,
     specific: u16,
 
-    fn asENetPort(self: *const AddressPort) u16 {
-        return switch (self) {
+    fn asENetPort(self: *const HostPort) u16 {
+        return switch (self.*) {
             .any => c.ENET_PORT_ANY,
             .specific => |port| port,
         };
@@ -54,12 +54,12 @@ pub const AddressPort = union(enum) {
 };
 
 pub const Address = struct {
-    addr: c.ENetAddress,
+    inner: c.ENetAddress,
 
-    pub fn init(host: AddressHost, port: AddressPort) !Address {
+    pub fn init(host: HostIP, port: HostPort) !Address {
         return .{
-            .addr = .{
-                .host = try host.asENetAddress(),
+            .inner = .{
+                .host = try host.asENetHostIP(),
                 .port = port.asENetPort(),
             },
         };
@@ -71,7 +71,7 @@ pub const Bandwidth = union(enum) {
     specific: u32,
 
     fn asENetBandwidth(self: *const Bandwidth) u32 {
-        return switch (self) {
+        return switch (self.*) {
             .unlimited => 0,
             .specific => |bw| bw,
         };
@@ -107,23 +107,27 @@ pub const Packet = struct {
     }
 };
 
+pub const HostConfig = struct {
+    addr: ?Address,
+    peer_count: usize,
+    channel_count: usize,
+    incoming_bandwidth: Bandwidth,
+    outgoing_bandwidth: Bandwidth,
+};
+
 pub const Host = struct {
     ptr: *c.ENetHost,
 
-    pub fn init(
-        address: Address,
-        peer_count: usize,
-        channel_count: usize,
-        incoming_bandwidth: Bandwidth,
-        outgoing_bandwidth: Bandwidth,
-    ) !Host {
+    pub fn init(config: HostConfig) !Host {
+        const addr = if (config.addr) |addr| &addr.inner else null;
         const host = c.enet_host_create(
-            &address.addr,
-            peer_count,
-            channel_count,
-            incoming_bandwidth.asENetBandwidth(),
-            outgoing_bandwidth.asENetBandwidth(),
+            addr,
+            config.peer_count,
+            config.channel_count,
+            config.incoming_bandwidth.asENetBandwidth(),
+            config.outgoing_bandwidth.asENetBandwidth(),
         );
+
         if (host == null) {
             return Error.HostCreateFailed;
         }
@@ -135,13 +139,13 @@ pub const Host = struct {
 
     pub fn connect(
         self: *const Host,
-        address: Address,
+        addr: Address,
         channel_count: usize,
         data: u32,
     ) !Peer {
         const peer = c.enet_host_connect(
             self.ptr,
-            &address.addr,
+            &addr.inner,
             channel_count,
             data,
         );
@@ -158,7 +162,7 @@ pub const Host = struct {
         c.enet_host_destroy(self.ptr);
     }
 
-    pub fn service(self: *const Host, timeout_ms: i32) Error!?Event {
+    pub fn service(self: *const Host, timeout_ms: u32) Error!?Event {
         var event = @as(c.ENetEvent, undefined);
         if (c.enet_host_service(self.ptr, &event, timeout_ms) < 0) {
             return Error.HostServiceFailed;
@@ -213,7 +217,7 @@ pub const Host = struct {
 };
 
 pub const PeerIterator = struct {
-    peers: []*c.ENetPeer,
+    peers: []c.ENetPeer,
     index: usize,
 
     pub fn next(self: *PeerIterator) ?Peer {
@@ -225,7 +229,7 @@ pub const PeerIterator = struct {
         self.index += 1;
 
         return .{
-            .ptr = self.peers[index],
+            .ptr = &self.peers[index],
         };
     }
 };

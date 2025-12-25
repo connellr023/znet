@@ -5,8 +5,8 @@
     .minimum_zig_version = "0.15.2",
     .dependencies = .{
         .c_enet = .{
-            .url = "https://github.com/lsalzman/enet/archive/refs/tags/v1.3.18.tar.gz",
-            .hash = "N-V-__8AAAC8BQCg_CK0VSnYq0FJKBFnGJOv_PUQyln0wqUE",
+            .url = "git+https://github.com/lsalzman/enet.git",
+            .hash = "N-V-__8AAOfEBQDV0QE6f1lRiGiqZa9k3-ZkthJHdwGIp3Zh",
         },
     },
     .paths = .{

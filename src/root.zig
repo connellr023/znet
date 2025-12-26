@@ -62,15 +62,21 @@ pub const HostPort = union(enum) {
     /// Any port; Maps to `ENET_PORT_ANY`.
     any,
     /// Specific port number.
-    port: u16,
+    uint: u16,
 
     /// Convert to ENet port representation.
     fn asENetPort(self: HostPort) u16 {
         return switch (self) {
             .any => c.ENET_PORT_ANY,
-            .port => |port| port,
+            .uint => |port| port,
         };
     }
+};
+
+/// Configuration for initializing an `Address`.
+pub const AddressConfig = struct {
+    ip: HostIP,
+    port: HostPort,
 };
 
 /// Representation of a host address consisting of IP and port.
@@ -78,12 +84,12 @@ pub const Address = struct {
     /// Internal ENet address representation.
     inner: c.ENetAddress,
 
-    /// Create an `Address` from a `HostIP` and `HostPort`.
-    pub fn init(host: HostIP, port: HostPort) !Address {
+    /// Create an `Address` from an `AddressConfig`.
+    pub fn init(config: AddressConfig) !Address {
         return .{
             .inner = .{
-                .host = try host.asENetHostIP(),
-                .port = port.asENetPort(),
+                .host = try config.ip.asENetHostIP(),
+                .port = config.port.asENetPort(),
             },
         };
     }
@@ -110,13 +116,13 @@ pub const ChannelLimit = union(enum) {
     /// Maximum allowed channels; Maps to `ENET_PROTOCOL_MAXIMUM_CHANNEL_COUNT`.
     max,
     /// User-defined specific channel limit.
-    channels: usize,
+    count: usize,
 
     /// Convert to ENet channel limit representation.
     fn asENetChannelLimit(self: ChannelLimit) usize {
         return switch (self) {
             .max => c.ENET_PROTOCOL_MAXIMUM_CHANNEL_COUNT,
-            .channels => |limit| limit,
+            .count => |limit| limit,
         };
     }
 };
@@ -175,6 +181,16 @@ pub const HostConfig = struct {
     outgoing_bandwidth: BandwidthLimit,
 };
 
+/// Configuration for connecting to a remote `Peer`.
+pub const ConnectConfig = struct {
+    /// Address of the remote peer to connect to.
+    addr: Address,
+    /// Maximum number of channels for the connection.
+    channel_limit: ChannelLimit,
+    /// Arbitrary user data associated with the connection.
+    data: u32,
+};
+
 /// Representation of a network host.
 pub const Host = struct {
     /// Internal pointer to ENet host.
@@ -201,18 +217,14 @@ pub const Host = struct {
     }
 
     /// Connect to a remote peer at the given address.
-    pub fn connect(
-        self: Host,
-        addr: Address,
-        channel_limit: ChannelLimit,
-        data: u32,
-    ) !Peer {
+    pub fn connect(self: Host, config: ConnectConfig) !Peer {
         const peer = c.enet_host_connect(
             self.ptr,
-            &addr.inner,
-            channel_limit.asENetChannelLimit(),
-            data,
+            &config.addr.inner,
+            config.channel_limit.asENetChannelLimit(),
+            config.data,
         );
+
         if (peer == null) {
             return Error.HostConnectFailed;
         }
@@ -364,30 +376,36 @@ pub const Peer = struct {
     }
 };
 
+/// Event emitted when a peer connects to the host.
+pub const ConnectEvent = struct {
+    /// The peer that connected.
+    peer: Peer,
+    /// Arbitrary user data associated with the connection.
+    data: u32,
+};
+
+/// Event emitted when a peer disconnects from the host.
+pub const DisconnectEvent = struct {
+    /// The peer that disconnected.
+    peer: Peer,
+    /// Arbitrary user data associated with the disconnection.
+    data: u32,
+};
+
+/// Event emitted when a packet is received from a peer.
+pub const ReceiveEvent = struct {
+    /// The peer that sent the packet.
+    peer: Peer,
+    /// The received packet.
+    /// Ownership of the packet is transferred to the caller.
+    packet: Packet,
+};
+
 /// Representation of an event occurring on a `Host`.
 pub const Event = union(enum) {
-    /// Connect event emitted when a peer connects to the host.
-    connect: struct {
-        /// The peer that connected.
-        peer: Peer,
-        /// Arbitrary user data associated with the connection.
-        data: u32,
-    },
-    /// Disconnect event emitted when a peer disconnects from the host.
-    disconnect: struct {
-        /// The peer that disconnected.
-        peer: Peer,
-        /// Arbitrary user data associated with the disconnection.
-        data: u32,
-    },
-    /// Receive event emitted when a packet is received from a peer.
-    receive: struct {
-        /// The peer that sent the packet.
-        peer: Peer,
-        /// The received packet.
-        /// Ownership of the packet is transferred to the caller.
-        packet: Packet,
-    },
+    connect: ConnectEvent,
+    disconnect: DisconnectEvent,
+    receive: ReceiveEvent,
 };
 
 /// Initialize the ENet library.

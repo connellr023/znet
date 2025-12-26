@@ -48,17 +48,16 @@ pub fn main() !void {
     try znet.init();
     defer znet.deinit();
 
-    const host_addr = try znet.Address.init(.any, .{ .port = 5000 });
-    const host_config = znet.HostConfig{
-        .addr = host_addr,
+    const host = try znet.Host.init(.{
+        .addr = try .init(.{
+            .ip = .any,
+            .port = .{ .uint = 5000 },
+        }),
         .peer_limit = 32,
         .channel_limit = .max,
         .incoming_bandwidth = .unlimited,
         .outgoing_bandwidth = .unlimited,
-    };
-
-    const host = try znet.Host.init(host_config);
-    defer host.deinit();
+    });
 
     // Service events
     while (try host.service(500)) |event| switch (event) {
@@ -85,22 +84,23 @@ pub fn main() !void {
     try znet.init();
     defer znet.deinit();
 
-    const host_config = znet.HostConfig{
+    const host = try znet.Host.init(.{
         .addr = null,
         .peer_limit = 1,
         .channel_limit = .max,
         .incoming_bandwidth = .unlimited,
         .outgoing_bandwidth = .unlimited,
-    };
-
-    const host = try znet.Host.init(host_config);
+    });
     defer host.deinit();
 
-    const server_addr = znet.Address.init(
-        .{ .ipv4 = "127.0.0.1" },
-        .{ .port = 5000 },
-    );
-    var peer = try host.connect(peer_addr, .max, 0);
+    const peer = try host.connect(.{
+        .addr = try .init(.{
+            .ip = .{ .ipv4 = "127.0.0.1" },
+            .port = .{ .uint = 5000 },
+        }),
+        .channel_limit = .max,
+        .data = 0,
+    });
 
     // Send reliable packet
     var packet = try znet.Packet.init("Hello, Server!", 0, .reliable);

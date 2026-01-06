@@ -102,14 +102,14 @@ pub fn main() !void {
         .data = 0,
     });
 
-    // Send reliable packet
-    var packet = try znet.Packet.init("Hello, Server!", 0, .reliable);
-    try peer.send(packet);
-
     // Service events
     while (try host.service(500)) |event| switch (event) {
         .connect => |data| {
-            // Handle connection
+            // Send reliable packet and handle connection
+            var packet = try znet.Packet.init("Hello, Server!", 0, .reliable);
+            defer packet.deinit()
+
+            try peer.send(packet);
         },
         .disconnect => |data| {
             // Handle disconnection
